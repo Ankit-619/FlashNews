@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
 import InterestSelector from "./components/InterestSelector";
 import NewsFeed from "./components/NewsFeed";
 import SkeletonCard from "./components/SkeletonCard";
+import CategoryVideo from "./components/CategoryVideo";
+import { CATEGORY_VIDEOS } from "./data/categoryVideos";
+import { sounds } from "./utils/sounds";
 import "./App.css";
 
 interface Article {
@@ -14,6 +17,7 @@ interface Article {
 }
 
 const SAVED_KEY = "flashnews:saved";
+const HOME = "Home";
 
 function App() {
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -30,40 +34,86 @@ function App() {
     }
   });
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [videoCategory, setVideoCategory] = useState<string>(HOME);
+  const prevSelectedRef = useRef<string[]>([]);
 
+  // Persist saved articles to localStorage
   useEffect(() => {
     localStorage.setItem(SAVED_KEY, JSON.stringify(savedArticles));
   }, [savedArticles]);
 
-  const playPopSound = () => {
-    try {
-      const ctx = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.2);
-    } catch {
-      // Audio not supported or blocked — silently skip
+  // Update video background when selection changes
+  useEffect(() => {
+    const prev = prevSelectedRef.current;
+    const added = selectedInterests.find((c) => !prev.includes(c));
+
+    if (added) {
+      setVideoCategory(added);
+    } else if (selectedInterests.length === 0) {
+      setVideoCategory(HOME);
+    } else {
+      setVideoCategory(selectedInterests[selectedInterests.length - 1]);
     }
-  };
+
+    prevSelectedRef.current = selectedInterests;
+  }, [selectedInterests]);
+
+  // Entrance sound — plays on first user interaction (browser requirement)
+  useEffect(() => {
+    let played = false;
+
+    const handler = () => {
+      if (played) return;
+      played = true;
+      sounds.enter();
+      document.removeEventListener("click", handler);
+      document.removeEventListener("keydown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+
+    document.addEventListener("click", handler);
+    document.addEventListener("keydown", handler);
+    document.addEventListener("touchstart", handler);
+
+    return () => {
+      document.removeEventListener("click", handler);
+      document.removeEventListener("keydown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, []);
+
+  // Button sound delegation — every button plays a contextual sound
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest("button");
+      if (!target) return;
+
+      if (target.classList.contains("category-pill")) {
+        sounds.select();
+      } else if (target.classList.contains("fetch-button")) {
+        sounds.primary();
+      } else if (target.classList.contains("save-button")) {
+        sounds.pop();
+      } else if (target.classList.contains("saved-toggle")) {
+        sounds.click();
+      } else {
+        sounds.click();
+      }
+    };
+
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
 
   const fireConfetti = () => {
     confetti({
-      particleCount: 80,
-      spread: 70,
+      particleCount: 60,
+      spread: 60,
       origin: { y: 0.35 },
-      colors: ["#a855f7", "#ec4899", "#06b6d4", "#f97316"],
-      scalar: 0.9,
+      colors: ["#FFFFFF", "#FA5D29", "#E4E4E4"],
+      scalar: 0.8,
       gravity: 1.1,
-      ticks: 180,
+      ticks: 160,
     });
   };
 
@@ -74,13 +124,12 @@ function App() {
       setSavedArticles(savedArticles.filter((a) => a.url !== article.url));
     } else {
       setSavedArticles([...savedArticles, article]);
-      playPopSound();
     }
   };
 
   const handleFetchNews = async () => {
     if (selectedInterests.length === 0) {
-      setError("Please select at least one interest.");
+      setError("Please select a topic first.");
       return;
     }
 
@@ -97,6 +146,7 @@ function App() {
       const data = await response.json();
       setNews(data.articles || []);
       fireConfetti();
+      sounds.success();
     } catch (err) {
       setError(
         `Something went wrong: ${err instanceof Error ? err.message : String(err)}`
@@ -114,9 +164,11 @@ function App() {
   const displayArticles = showSavedOnly ? savedArticles : news;
 
   return (
-    <div className="app">
+    <div className={`app ${videoCategory ? "has-video" : ""}`}>
+      <CategoryVideo src={CATEGORY_VIDEOS[videoCategory] || null} />
+
       <header className="app-header">
-        <div className="brand-badge">AI-curated · always fresh</div>
+        <div className="eyebrow">AI-curated · always fresh</div>
         <h1>FlashNews</h1>
         <p>Your feed, your vibe. Pick what you're into, get the highlights.</p>
       </header>
@@ -136,7 +188,7 @@ function App() {
             <span className="spinner" /> Brewing your feed…
           </>
         ) : (
-          <>✨ Get My News</>
+          <>Get My News</>
         )}
       </button>
 
@@ -161,7 +213,7 @@ function App() {
 
       {loading && (
         <div className="news-feed">
-          <h2>Fresh for you</h2>
+          <h2>Latest for you</h2>
           {[0, 1, 2, 3].map((i) => (
             <SkeletonCard key={i} />
           ))}
@@ -171,7 +223,7 @@ function App() {
       {!loading && hasSearched && news.length === 0 && !error && !showSavedOnly && (
         <div className="empty-state">
           <span className="big-emoji">🫥</span>
-          No articles found. Try a different mix of interests.
+          No articles found. Try a different topic.
         </div>
       )}
 
@@ -182,11 +234,13 @@ function App() {
         </div>
       )}
 
-      {!loading && <NewsFeed
-        articles={displayArticles}
-        savedUrls={savedUrls}
-        onToggleSave={toggleSave}
-      />}
+      {!loading && (
+        <NewsFeed
+          articles={displayArticles}
+          savedUrls={savedUrls}
+          onToggleSave={toggleSave}
+        />
+      )}
     </div>
   );
 }

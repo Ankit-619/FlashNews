@@ -84,3 +84,45 @@ echo "NEWSAPI_KEY=your_key_here" >> .env
 
 # Start the dev server
 npm run dev
+
+Open http://localhost:5173 in your browser.
+
+Environment Variables
+Variable	Description
+GEMINI_API_KEY	Google Gemini API key from Google AI Studio
+NEWSAPI_KEY	NewsAPI key from newsapi.org
+⚠️ Never commit your .env file. It's already excluded in .gitignore.
+
+📦 Deployment
+This project is set up for one-click deployment on Netlify:
+
+Push your code to GitHub
+
+Connect the repo on Netlify
+
+Add GEMINI_API_KEY and NEWSAPI_KEY under Site configuration → Environment variables
+
+Deploy — Netlify auto-builds on every push to main
+
+💡 What I Learned Building This
+Structuring prompts for LLMs — getting reliable JSON output requires explicit instructions and defensive parsing
+
+Handling AI rate limits — 503s and 429s are inevitable; exponential backoff with model fallback keeps the UX smooth
+
+Serverless architecture — keeping secrets safe by moving all API calls behind Netlify Functions
+
+Progressive enhancement — features like sounds and video backgrounds degrade gracefully when unsupported
+
+Asset strategy — moving large video files to a CDN keeps the repo lean and deploys fast
+
+📄 License
+MIT — free to use, modify, and learn from.
+
+👤 Author
+Ankit Ojha
+
+GitHub: @Ankit-619
+
+LinkedIn: [https://www.linkedin.com/in/ankit-ojha-286a90287/]
+
+⭐ If you found this project useful or interesting, consider giving it a star!
